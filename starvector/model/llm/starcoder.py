@@ -4,6 +4,15 @@ from transformers import (
     AutoModelForCausalLM, 
     AutoTokenizer,
     )
+from torch import cuda
+
+def is_flash_attention_2_supported():
+    if not cuda.is_available():
+        return False
+    major, minor = cuda.get_device_capability()
+    compute_capability = float(f"{major}.{minor}")
+    # FlashAttention 2 requires compute capability >= 8.0 (Ampere or newer)
+    return compute_capability >= 8.0
 
 class StarCoderModel(nn.Module):
     def __init__(self, config, **kwargs):
@@ -21,11 +30,12 @@ class StarCoderModel(nn.Module):
         model_config.eos_token_id = self.tokenizer.eos_token_id
         model_config.pad_token_id = self.tokenizer.pad_token_id
         model_config.bos_token_id = self.tokenizer.bos_token_id
-        try:
+        if config.use_flash_attn and is_flash_attention_2_supported():
             model_config.flash_attention = config.use_flash_attn
             model_config._attn_implementation = "flash_attention_2"
-        except ImportError:
+        else:
             config.use_flash_attn = False
+            model_config._attn_implementation = "eager"
         
         # model = GPTBigCodeForCausalLM(config=model_config)
         model = AutoModelForCausalLM.from_pretrained(config.starcoder_model_name, config=model_config, **kwargs)
