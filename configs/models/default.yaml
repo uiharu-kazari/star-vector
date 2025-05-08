@@ -9,7 +9,7 @@ model:
   starcoder_model_name: bigcode/starcoderbase-1b
   pretrained: true
   image_encoder_type: clip
-  use_flash_attn: true
+  attn_implementation: eager
   adapter_norm: layer_norm
   init_type: glorot
   dropout: 0.1

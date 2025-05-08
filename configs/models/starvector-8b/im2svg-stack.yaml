@@ -9,7 +9,7 @@ model:
   starcoder_model_name: bigcode/starcoder2-7b
   pretrained: true
   image_encoder_type: siglip_384
-  use_flash_attn: true
+  attn_implementation: eager
   adapter_norm: layer_norm
   init_type: normal
   dropout: 0.1

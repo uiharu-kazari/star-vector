@@ -1,9 +1,8 @@
-from transformers import (
-    PretrainedConfig,
-    PreTrainedModel
-)
+from transformers import PretrainedConfig, PreTrainedModel
 from torch.nn import CrossEntropyLoss
-from transformers.models.gpt_bigcode.modeling_gpt_bigcode import CausalLMOutputWithCrossAttentions
+from transformers.models.gpt_bigcode.modeling_gpt_bigcode import (
+    CausalLMOutputWithCrossAttentions,
+)
 from typing import Optional, Tuple, Union
 import torch
 
@@ -13,19 +12,21 @@ from torchvision.transforms.functional import InterpolationMode, pad
 from transformers.feature_extraction_sequence_utils import BatchFeature
 from transformers import AutoProcessor
 
+
 class SimpleStarVectorProcessor(ProcessorMixin):
     attributes = ["tokenizer"]  # Only include tokenizer in attributes
     valid_kwargs = ["size", "mean", "std"]  # Add other parameters as valid kwargs
     image_processor_class = "AutoImageProcessor"
     tokenizer_class = "AutoTokenizer"
 
-    def __init__(self, 
-                 tokenizer=None,  # Make tokenizer the first argument
-                 size=224, 
-                 mean=None, 
-                 std=None, 
-                 **kwargs,
-                 ):
+    def __init__(
+        self,
+        tokenizer=None,  # Make tokenizer the first argument
+        size=224,
+        mean=None,
+        std=None,
+        **kwargs,
+    ):
         if mean is None:
             mean = (0.48145466, 0.4578275, 0.40821073)
         if std is None:
@@ -35,24 +36,29 @@ class SimpleStarVectorProcessor(ProcessorMixin):
         self.mean = mean
         self.std = std
         self.size = size
-        self.normalize = transforms.Normalize(mean=mean, std=std)        
-        
-        self.transform = transforms.Compose([
-            transforms.Lambda(lambda img: img.convert("RGB") if img.mode == "RGBA" else img),
-            transforms.Lambda(lambda img: self._pad_to_square(img)),
-            transforms.Resize(size, interpolation=InterpolationMode.BICUBIC),
-            transforms.ToTensor(),
-            self.normalize
-        ])
+        self.normalize = transforms.Normalize(mean=mean, std=std)
+
+        self.transform = transforms.Compose(
+            [
+                transforms.Lambda(
+                    lambda img: img.convert("RGB") if img.mode == "RGBA" else img
+                ),
+                transforms.Lambda(lambda img: self._pad_to_square(img)),
+                transforms.Resize(size, interpolation=InterpolationMode.BICUBIC),
+                transforms.ToTensor(),
+                self.normalize,
+            ]
+        )
 
         # Initialize parent class with tokenizer
         super().__init__(tokenizer=tokenizer)
 
-
-    def __call__(self, images=None, text=None, max_length=None, **kwargs) -> BatchFeature:
+    def __call__(
+        self, images=None, text=None, max_length=None, **kwargs
+    ) -> BatchFeature:
         """
         Process images and/or text inputs.
-        
+
         Args:
             images: Optional image input(s)
             text: Optional text input(s)
@@ -68,15 +74,16 @@ class SimpleStarVectorProcessor(ProcessorMixin):
             else:
                 images_ = self.transform(images)
             image_inputs = {"pixel_values": images_}
-        
+
         text_inputs = {}
         if text is not None:
             text_inputs = self.tokenizer(
-                text, truncation=True, 
-                add_special_tokens=True, 
-                padding='longest', 
-                max_length=max_length, 
-                return_tensors="pt"
+                text,
+                truncation=True,
+                add_special_tokens=True,
+                padding="longest",
+                max_length=max_length,
+                return_tensors="pt",
             )
 
         return BatchFeature(data={**text_inputs, **image_inputs})
@@ -104,7 +111,7 @@ class StarVectorConfig(PretrainedConfig):
         image_size: int = 224,
         max_length: int = 8192,
         max_length_train: int = 8192,
-        use_flash_attn: bool = False,
+        attn_implementation: str = "eager",
         use_cache: bool = True,
         num_attention_heads: int = 16,
         num_hidden_layers: int = 24,
@@ -121,7 +128,7 @@ class StarVectorConfig(PretrainedConfig):
         self.image_size = image_size
         self.max_length = max_length
         self.max_length_train = max_length_train
-        self.use_flash_attn = use_flash_attn
+        self.attn_implementation = attn_implementation
         self.use_cache = use_cache
         self.num_attention_heads = num_attention_heads
         self.num_hidden_layers = num_hidden_layers
@@ -130,6 +137,7 @@ class StarVectorConfig(PretrainedConfig):
         self.num_kv_heads = num_kv_heads
         super().__init__(**kwargs)
 
+
 class StarVectorForCausalLM(PreTrainedModel):
     config_class = StarVectorConfig
     _no_split_modules = []
@@ -137,39 +145,55 @@ class StarVectorForCausalLM(PreTrainedModel):
     def __init__(self, config: StarVectorConfig, **kwargs):
         super().__init__(config)
         starcoder_model_name = config.starcoder_model_name
-        if 'starcoder2' in starcoder_model_name:
+        if "starcoder2" in starcoder_model_name:
             from starvector.model.models.starvector_v2 import StarVectorStarCoder2
+
             self.model = StarVectorStarCoder2(config=config, **kwargs)
         else:
             from starvector.model.models.starvector_v1 import StarVectorStarCoder
+
             self.model = StarVectorStarCoder(config=config, **kwargs)
-            
 
     @property
     def supports_gradient_checkpointing(self):
         # If the underlying transformer (e.g., the one in StarCoderModel)
         # supports gradient checkpointing, delegate to it.
-        if hasattr(self.model, 'svg_transformer'):
-            return getattr(self.model.svg_transformer, 'supports_gradient_checkpointing', False)
+        if hasattr(self.model, "svg_transformer"):
+            return getattr(
+                self.model.svg_transformer, "supports_gradient_checkpointing", False
+            )
         return False
 
     def gradient_checkpointing_enable(self):
         # Optionally, forward this call to the internal transformer.
-        if hasattr(self.model, 'svg_transformer') and hasattr(self.model.svg_transformer, 'gradient_checkpointing_enable'):
+        if hasattr(self.model, "svg_transformer") and hasattr(
+            self.model.svg_transformer, "gradient_checkpointing_enable"
+        ):
             self.model.svg_transformer.gradient_checkpointing_enable()
-            
-    def forward(self,  vision_embeds, input_ids, num_generations, attention_mask, num_logits_to_keep) -> Union[Tuple, CausalLMOutputWithCrossAttentions]:
+
+    def forward(
+        self,
+        vision_embeds,
+        input_ids,
+        num_generations,
+        attention_mask,
+        num_logits_to_keep,
+    ) -> Union[Tuple, CausalLMOutputWithCrossAttentions]:
         completion_embeds = self.model._get_embeddings(input_ids)
-        inputs_embeds = torch.cat([vision_embeds.repeat(num_generations, 1, 1), completion_embeds], dim=1)
+        inputs_embeds = torch.cat(
+            [vision_embeds.repeat(num_generations, 1, 1), completion_embeds], dim=1
+        )
 
         transformer_outputs = self.model.svg_transformer.transformer.transformer(
-            inputs_embeds=inputs_embeds, 
+            inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
         )
         hidden_states = transformer_outputs[0]
 
         if num_logits_to_keep > 0:
-            lm_logits = self.model.svg_transformer.transformer.lm_head(hidden_states[:, -num_logits_to_keep:, :])
+            lm_logits = self.model.svg_transformer.transformer.lm_head(
+                hidden_states[:, -num_logits_to_keep:, :]
+            )
         else:
             lm_logits = self.model.svg_transformer.transformer.lm_head(hidden_states)
 
@@ -185,10 +209,9 @@ class StarVectorForCausalLM(PreTrainedModel):
 
     def generate_im2svg(self, batch, **kwargs):
         return self.model.generate_im2svg(batch, **kwargs)
-    
+
     def generate_im2text(self, batch, **kwargs):
         return self.model.generate_im2text(batch, **kwargs)
 
     def process_images(self, images):
         return self.model.image_encoder.process_images(images)
-
