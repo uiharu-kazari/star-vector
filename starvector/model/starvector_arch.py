@@ -104,7 +104,7 @@ class StarVectorConfig(PretrainedConfig):
         image_size: int = 224,
         max_length: int = 8192,
         max_length_train: int = 8192,
-        use_flash_attn: bool = True,
+        use_flash_attn: bool = False,
         use_cache: bool = True,
         num_attention_heads: int = 16,
         num_hidden_layers: int = 24,
