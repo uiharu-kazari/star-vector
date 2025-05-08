@@ -34,7 +34,7 @@ class StarCoderModel(nn.Module):
         model_config.eos_token_id = self.tokenizer.eos_token_id
         model_config.pad_token_id = self.tokenizer.pad_token_id
         model_config.bos_token_id = self.tokenizer.bos_token_id
-        attn_implementation = config["attn_implementation"]
+        attn_implementation = getattr(config, "attn_implementation", "eager")
         if attn_implementation not in ["eager", "sdpa", "flash_attention_2"]:
             raise ValueError(
                 f"attn_implementation {attn_implementation} not supported. Choose from 'eager', 'sdpa', or 'flash_attention_2'"
