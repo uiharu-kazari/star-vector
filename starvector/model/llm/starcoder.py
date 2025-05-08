@@ -35,7 +35,7 @@ class StarCoderModel(nn.Module):
             model_config._attn_implementation = "flash_attention_2"
         else:
             config.use_flash_attn = False
-            model_config._attn_implementation = "eager"
+            model_config._attn_implementation = "sdpa"
         
         # model = GPTBigCodeForCausalLM(config=model_config)
         model = AutoModelForCausalLM.from_pretrained(config.starcoder_model_name, config=model_config, **kwargs)
